@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 import 'dart:math';
 
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 
-/// A deliberately small Tetris-like game used to exercise asciiv.
+/// A deliberately small Tetris-like game used to exercise ascanvas.
 Future<void> main() async {
   if (!stdout.hasTerminal || !stdin.hasTerminal) {
     stderr.writeln('tetris must be run in an interactive terminal.');
@@ -138,7 +138,7 @@ class _Tetris {
       canvas.text(
         1,
         0,
-        'Terminal too small: asciiv tetris needs at least '
+        'Terminal too small: ascanvas tetris needs at least '
         '${totalWidth}x$totalHeight cells.',
         fg: Colour.brightRed,
       );
@@ -382,7 +382,7 @@ class _Tetris {
       canvas.text(
         _originX + 3,
         0,
-        'ASCIIV TETRIS',
+        'ASCANVAS TETRIS',
         fg: Colour.brightCyan,
       );
     }

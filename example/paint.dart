@@ -1,6 +1,6 @@
 import 'dart:io';
 
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 
 /// Paints a palette and a colour gradient, then waits for a key press.
 Future<void> main() async {
@@ -31,7 +31,7 @@ Future<void> main() async {
 }
 
 void _paint(Canvas canvas) {
-  canvas.text(1, 0, 'asciiv', fg: Colour.brightCyan);
+  canvas.text(1, 0, 'ascanvas', fg: Colour.brightCyan);
   canvas.text(8, 0, 'terminal painting demo', fg: Colour.brightBlack);
 
   // The sixteen ANSI colours.

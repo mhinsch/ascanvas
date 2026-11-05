@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 
 /// Paints a trail of mouse events until Q or Escape is pressed.
 Future<void> main() async {
@@ -58,7 +58,7 @@ void _draw(
   }
 
   canvas.fill(0, 0, canvas.width, 4);
-  canvas.text(1, 0, 'asciiv mouse demo', fg: Colour.brightCyan);
+  canvas.text(1, 0, 'ascanvas mouse demo', fg: Colour.brightCyan);
   canvas.text(
     1,
     1,

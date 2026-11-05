@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 import 'package:test/test.dart';
 
 KeyEvent asKey(InputEvent event) => event as KeyEvent;

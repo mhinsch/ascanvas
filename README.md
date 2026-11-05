@@ -1,4 +1,4 @@
-# asciiv
+# ascanvas
 
 A small, dependency-free Dart library for painting glyphs in any foreground
 and background colour at any position on an ANSI terminal.
@@ -23,7 +23,7 @@ palette the terminal supports.
 ## Quick start
 
 ```dart
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 
 Future<void> main() async {
   final terminal = Terminal();
@@ -32,7 +32,7 @@ Future<void> main() async {
   try {
     final canvas = Canvas(terminal.columns, terminal.rows);
 
-    canvas.text(2, 1, 'Hello, asciiv!', fg: Colour.brightCyan);
+    canvas.text(2, 1, 'Hello, ascanvas!', fg: Colour.brightCyan);
     canvas.put(2, 3, 'X', fg: Colour.brightYellow, bg: Colour.blue);
     canvas.fill(2, 5, 20, 3, bg: Colour.rgb(20, 20, 40));
     canvas.box(1, 0, 24, 9, fg: Colour.brightMagenta);
@@ -153,7 +153,7 @@ A small Tetris-like game is included as an end-to-end test of the library:
 ```sh
 dart run bin/tetris.dart
 # or, after activation:
-dart run asciiv:tetris
+dart run ascanvas:tetris
 ```
 
 Controls:

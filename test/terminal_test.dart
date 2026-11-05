@@ -2,12 +2,12 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
-import 'package:asciiv/asciiv.dart';
+import 'package:ascanvas/ascanvas.dart';
 import 'package:test/test.dart';
 
 void main() {
   test('serialises presents and restores the screen', () async {
-    final directory = await Directory.systemTemp.createTemp('asciiv_test_');
+    final directory = await Directory.systemTemp.createTemp('ascanvas_test_');
     final file = File('${directory.path}/output.ansi');
     final sink = file.openWrite();
     final input = StreamController<List<int>>();
@@ -49,7 +49,7 @@ void main() {
   });
 
   test('enables mouse reporting and routes mouse events', () async {
-    final directory = await Directory.systemTemp.createTemp('asciiv_test_');
+    final directory = await Directory.systemTemp.createTemp('ascanvas_test_');
     final file = File('${directory.path}/output.ansi');
     final sink = file.openWrite();
     final input = StreamController<List<int>>();
