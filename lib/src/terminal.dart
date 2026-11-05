@@ -3,9 +3,10 @@ import 'dart:io';
 
 import 'canvas.dart';
 import 'colour.dart';
+import 'input.dart';
 import 'keys.dart';
 
-/// A full-screen ANSI terminal with raw keyboard input.
+/// A full-screen ANSI terminal with raw keyboard and mouse input.
 ///
 /// [open] switches to the alternate screen, hides the cursor and turns off
 /// line buffering/echo. [close] restores all of that. The raw-mode setup is
@@ -16,13 +17,15 @@ class Terminal {
   /// [output] and [input] default to [stdout] and [stdin]. [columns] and
   /// [rows] override the detected size, which is useful for tests. Set
   /// [installSignalHandlers] to `false` if the application wants to manage
-  /// Ctrl-C and SIGTERM itself.
+  /// Ctrl-C and SIGTERM itself. [mouseMode] enables terminal mouse reporting;
+  /// it is off by default so that normal text selection keeps working.
   Terminal({
     IOSink? output,
     Stream<List<int>>? input,
     ColourMode? colourMode,
     int? columns,
     int? rows,
+    this.mouseMode = MouseMode.off,
     bool installSignalHandlers = true,
   })  : _output = output ?? stdout,
         _input = input ?? stdin,
@@ -40,9 +43,12 @@ class Terminal {
   /// The colour mode used when presenting canvases.
   final ColourMode colourMode;
 
+  /// How much mouse activity the terminal reports.
+  final MouseMode mouseMode;
+
   final KeyParser _parser = KeyParser();
-  final StreamController<KeyEvent> _keys =
-      StreamController<KeyEvent>.broadcast();
+  final StreamController<InputEvent> _events =
+      StreamController<InputEvent>.broadcast();
 
   StreamSubscription<List<int>>? _inputSubscription;
   final List<StreamSubscription<ProcessSignal>> _signalSubscriptions = [];
@@ -106,12 +112,26 @@ class Terminal {
     }
   }
 
+  /// All input events, in the order they arrived.
+  ///
+  /// This is a broadcast stream containing both [KeyEvent]s and
+  /// [MouseEvent]s.
+  Stream<InputEvent> get events => _events.stream;
+
   /// Key presses from the terminal.
   ///
   /// This is a broadcast stream, so it may have multiple listeners.
-  Stream<KeyEvent> get keys => _keys.stream;
+  Stream<KeyEvent> get keys =>
+      _events.stream.where((event) => event is KeyEvent).cast<KeyEvent>();
 
-  /// Enters the alternate screen and starts reading raw key input.
+  /// Mouse events from the terminal.
+  ///
+  /// Only events permitted by [mouseMode] are reported. This is a broadcast
+  /// stream.
+  Stream<MouseEvent> get mouse =>
+      _events.stream.where((event) => event is MouseEvent).cast<MouseEvent>();
+
+  /// Enters the alternate screen and starts reading raw input.
   Future<void> open() async {
     if (_isOpen) return;
     if (_wasOpened) {
@@ -132,10 +152,11 @@ class Terminal {
     }
 
     _output.write('\x1b[?1049h\x1b[?25l\x1b[2J\x1b[H');
+    _output.write(_mouseEnableSequence(mouseMode));
     _inputSubscription = _input.listen(
       _onInput,
       onError: (Object error, StackTrace stackTrace) {
-        if (!_keys.isClosed) _keys.addError(error, stackTrace);
+        if (!_events.isClosed) _events.addError(error, stackTrace);
       },
     );
 
@@ -177,12 +198,16 @@ class Terminal {
     }
 
     // Wait for any queued frames so that restoring the screen cannot race
-    // with an in-progress flush.
+    // with an in-progress flush. Disable every mouse mode before leaving the
+    // alternate screen so an error or early exit cannot leave tracking on.
     await _writeQueue;
-    _output.write('\x1b[0m\x1b[?25h\x1b[?1049l');
+    _output.write(
+      '\x1b[?1006l\x1b[?1003l\x1b[?1002l\x1b[?1000l'
+      '\x1b[0m\x1b[?25h\x1b[?1049l',
+    );
     await _output.flush();
 
-    if (!_keys.isClosed) await _keys.close();
+    if (!_events.isClosed) await _events.close();
   }
 
   /// Writes the difference between [canvas] and the terminal, then flushes.
@@ -213,17 +238,24 @@ class Terminal {
   void _onInput(List<int> bytes) {
     final events = _parser.add(bytes);
     for (final event in events) {
-      if (!_keys.isClosed) _keys.add(event);
+      if (!_events.isClosed) _events.add(event);
     }
 
     _escapeTimer?.cancel();
     if (_parser.hasPendingEscape) {
       _escapeTimer = Timer(const Duration(milliseconds: 25), () {
         final event = _parser.flushPendingEscape();
-        if (event != null && !_keys.isClosed) _keys.add(event);
+        if (event != null && !_events.isClosed) _events.add(event);
       });
     }
   }
+
+  static String _mouseEnableSequence(MouseMode mode) => switch (mode) {
+        MouseMode.off => '',
+        MouseMode.click => '\x1b[?1006h\x1b[?1000h',
+        MouseMode.drag => '\x1b[?1006h\x1b[?1002h',
+        MouseMode.motion => '\x1b[?1006h\x1b[?1003h',
+      };
 
   void _installSignals(ProcessSignal signal, int exitCode) {
     try {

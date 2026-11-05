@@ -1,54 +1,13 @@
 import 'dart:convert';
 
-/// Non-printable keys recognised by [KeyParser].
-enum SpecialKey {
-  left,
-  right,
-  up,
-  down,
-  home,
-  end,
-  pageUp,
-  pageDown,
-  insert,
-  delete,
-  enter,
-  backspace,
-  tab,
-  escape,
-}
+import 'input.dart';
 
-/// A key press received from the terminal.
-class KeyEvent {
-  const KeyEvent._({this.special, this.character});
-
-  /// Creates an event for a named key.
-  const KeyEvent.special(SpecialKey key) : this._(special: key);
-
-  /// Creates an event for a printable character.
-  const KeyEvent.char(String value) : this._(character: value);
-
-  /// The named key, or `null` for a printable character.
-  final SpecialKey? special;
-
-  /// The printable character, or `null` for a named key.
-  final String? character;
-
-  /// Whether this event represents a printable character.
-  bool get isCharacter => character != null;
-
-  @override
-  String toString() {
-    if (special != null) return 'KeyEvent(${special!.name})';
-    return 'KeyEvent(${jsonEncode(character)})';
-  }
-}
-
-/// Incrementally converts terminal input bytes into [KeyEvent]s.
+/// Incrementally converts terminal input bytes into [InputEvent]s.
 ///
-/// The parser accepts the normal ANSI CSI/SS3 cursor sequences as well as
-/// UTF-8 text. Input may be split at arbitrary byte boundaries; incomplete
-/// sequences are retained until more bytes arrive.
+/// The parser accepts keys (ANSI CSI/SS3 cursor sequences, control keys, and
+/// UTF-8 text) as well as SGR and legacy X10 mouse reports. Input may be split
+/// at arbitrary byte boundaries; incomplete sequences are retained until more
+/// bytes arrive.
 class KeyParser {
   final List<int> _buffer = [];
 
@@ -58,8 +17,8 @@ class KeyParser {
   /// that the rest of an escape sequence can arrive.
   bool get hasPendingEscape => _buffer.length == 1 && _buffer[0] == 0x1b;
 
-  /// Adds [bytes] and returns any complete key events.
-  List<KeyEvent> add(List<int> bytes) {
+  /// Adds [bytes] and returns any complete events.
+  List<InputEvent> add(List<int> bytes) {
     if (bytes.isEmpty) return const [];
     _buffer.addAll(bytes);
     return _parse();
@@ -67,7 +26,7 @@ class KeyParser {
 
   /// Handles an escape key that was not followed by anything.
   ///
-  /// This is needed because a real escape key and the beginning of a cursor key
+  /// This is needed because a real escape key and the beginning of an escape
   /// sequence are indistinguishable without a timeout.
   KeyEvent? flushPendingEscape() {
     if (!hasPendingEscape) return null;
@@ -75,8 +34,8 @@ class KeyParser {
     return const KeyEvent.special(SpecialKey.escape);
   }
 
-  List<KeyEvent> _parse() {
-    final events = <KeyEvent>[];
+  List<InputEvent> _parse() {
+    final events = <InputEvent>[];
     var position = 0;
 
     while (position < _buffer.length) {
@@ -87,6 +46,19 @@ class KeyParser {
 
         final next = _buffer[position + 1];
         if (next == 0x5b) {
+          // Legacy X10 mouse: ESC [ M followed by three encoded bytes.
+          if (position + 2 < _buffer.length && _buffer[position + 2] == 0x4d) {
+            if (position + 6 > _buffer.length) break;
+            final mouse = _x10MouseEvent(
+              _buffer[position + 3],
+              _buffer[position + 4],
+              _buffer[position + 5],
+            );
+            if (mouse != null) events.add(mouse);
+            position += 6;
+            continue;
+          }
+
           // CSI: ESC [ parameters final-byte
           var finalPosition = position + 2;
           while (finalPosition < _buffer.length &&
@@ -100,8 +72,13 @@ class KeyParser {
             _buffer.sublist(position + 2, finalPosition),
             allowInvalid: true,
           );
-          final key = _csiKey(_buffer[finalPosition], parameters);
-          if (key != null) events.add(KeyEvent.special(key));
+          if (parameters.startsWith('<')) {
+            final mouse = _sgrMouseEvent(parameters, _buffer[finalPosition]);
+            if (mouse != null) events.add(mouse);
+          } else {
+            final key = _csiKey(_buffer[finalPosition], parameters);
+            if (key != null) events.add(KeyEvent.special(key));
+          }
           position = finalPosition + 1;
           continue;
         }
@@ -142,6 +119,84 @@ class KeyParser {
 
     if (position > 0) _buffer.removeRange(0, position);
     return events;
+  }
+
+  static MouseEvent? _sgrMouseEvent(String parameters, int finalByte) {
+    if (finalByte != 0x4d && finalByte != 0x6d) return null;
+    if (!parameters.startsWith('<')) return null;
+
+    final fields = parameters.substring(1).split(';');
+    if (fields.length != 3) return null;
+
+    final code = int.tryParse(fields[0]);
+    final x = int.tryParse(fields[1]);
+    final y = int.tryParse(fields[2]);
+    if (code == null || x == null || y == null || x <= 0 || y <= 0) {
+      return null;
+    }
+
+    final release = finalByte == 0x6d;
+    return MouseEvent(
+      column: x - 1,
+      row: y - 1,
+      button: _buttonFromCode(code),
+      action: _actionFromCode(code, release: release),
+      shift: (code & 4) != 0,
+      alt: (code & 8) != 0,
+      ctrl: (code & 16) != 0,
+    );
+  }
+
+  static MouseEvent? _x10MouseEvent(int buttonByte, int xByte, int yByte) {
+    final code = buttonByte - 32;
+    final column = xByte - 33;
+    final row = yByte - 33;
+    if (code < 0 || column < 0 || row < 0) return null;
+
+    final noButton = (code & 3) == 3;
+    final release = noButton && (code & 32) == 0 && (code & 64) == 0;
+    return MouseEvent(
+      column: column,
+      row: row,
+      button: _buttonFromCode(code),
+      action: _actionFromCode(code, release: release),
+      shift: (code & 4) != 0,
+      alt: (code & 8) != 0,
+      ctrl: (code & 16) != 0,
+    );
+  }
+
+  static MouseButton _buttonFromCode(int code) {
+    if ((code & 64) != 0) {
+      return switch (code & 3) {
+        0 => MouseButton.wheelUp,
+        1 => MouseButton.wheelDown,
+        2 => MouseButton.wheelLeft,
+        _ => MouseButton.wheelRight,
+      };
+    }
+    if ((code & 128) != 0) {
+      return switch (code & 3) {
+        0 => MouseButton.back,
+        1 => MouseButton.forward,
+        _ => MouseButton.none,
+      };
+    }
+    return switch (code & 3) {
+      0 => MouseButton.left,
+      1 => MouseButton.middle,
+      2 => MouseButton.right,
+      _ => MouseButton.none,
+    };
+  }
+
+  static MouseAction _actionFromCode(int code, {required bool release}) {
+    if ((code & 64) != 0) return MouseAction.scroll;
+    if (release) return MouseAction.release;
+    if ((code & 32) != 0) {
+      return (code & 3) == 3 ? MouseAction.move : MouseAction.drag;
+    }
+    return MouseAction.press;
   }
 
   static SpecialKey? _csiKey(int finalByte, String parameters) {

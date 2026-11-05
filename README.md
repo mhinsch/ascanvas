@@ -16,6 +16,7 @@ palette the terminal supports.
 - Automatic colour-mode detection (`COLORTERM`, `TERM`), with manual override.
 - Alternate-screen, hidden cursor, raw single-key input, and clean restore on
   exit (including Ctrl-C/SIGTERM).
+- Optional mouse reporting for clicks, drags, motion, and wheel events.
 - Incremental rendering: only changed cells are written to the terminal.
 - No runtime dependencies.
 
@@ -44,10 +45,11 @@ Future<void> main() async {
 }
 ```
 
-Run the demo:
+Run the demos:
 
 ```sh
 dart run example/paint.dart
+dart run example/mouse.dart
 ```
 
 ## Painting API
@@ -107,6 +109,43 @@ await for (final event in terminal.keys) {
 The parser handles CSI and SS3 cursor sequences, fragmented UTF-8, and lone
 Escape key presses.
 
+## Mouse input
+
+Mouse reporting is opt-in because it intercepts normal click-drag text
+selection. Choose how much motion the terminal should report:
+
+```dart
+final terminal = Terminal(mouseMode: MouseMode.drag);
+```
+
+| Mode | Reports |
+| --- | --- |
+| `MouseMode.off` | Nothing (default) |
+| `MouseMode.click` | Button presses and releases |
+| `MouseMode.drag` | Presses, releases, and motion while a button is held |
+| `MouseMode.motion` | All mouse movement |
+
+Mouse events arrive through `terminal.mouse`, or together with key events on
+`terminal.events`:
+
+```dart
+await for (final event in terminal.mouse) {
+  print('${event.action} ${event.button} at ${event.column},${event.row}');
+  print('shift=${event.shift} alt=${event.alt} ctrl=${event.ctrl}');
+}
+```
+
+`MouseEvent.column` and `row` are zero-based terminal cells, matching `Canvas`
+coordinates. If you draw a canvas inset from the terminal edges, subtract its
+origin before painting. Presses, releases, moves, drags, and wheel scrolling are
+distinguished by `MouseAction`; `MouseButton` includes the wheel directions and
+back/forward buttons.
+
+The terminal is switched to SGR mouse encoding (`1006`) plus the selected
+tracking mode (`1000`/`1002`/`1003`) on `open()`, and every mouse mode is
+disabled again on `close()`, including clean-up on Ctrl-C/SIGTERM. Hold Shift
+while clicking if the terminal normally uses Shift for text selection.
+
 ## Tetris
 
 A small Tetris-like game is included as an end-to-end test of the library:
@@ -148,4 +187,7 @@ dart test
   at Linux/macOS terminals; other platforms may work but are untested.
 - Changing the terminal size mid-session is not detected. Create a new canvas
   (or call `invalidate()` after clearing) if the size changes.
+- Mouse support depends on the terminal implementing ANSI tracking modes. SGR
+  and legacy X10 reports are decoded; pixel-precise coordinates are not
+  available.
 - Output uses ANSI escape sequences, so the terminal must support them.

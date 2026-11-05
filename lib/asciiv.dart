@@ -3,5 +3,6 @@ library;
 
 export 'src/canvas.dart';
 export 'src/colour.dart';
+export 'src/input.dart';
 export 'src/keys.dart';
 export 'src/terminal.dart';
