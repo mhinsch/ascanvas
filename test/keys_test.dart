@@ -41,7 +41,44 @@ void main() {
       final events = parser.add([
         0x1b, 0x5b, 0x31, 0x3b, 0x35, 0x43, // ESC [ 1 ; 5 C
       ]);
-      expect(asKey(events.single).special, SpecialKey.right);
+      final event = asKey(events.single);
+      expect(event.special, SpecialKey.right);
+      expect(event.ctrl, isTrue);
+      expect(event.shift, isFalse);
+      expect(event.alt, isFalse);
+    });
+
+    test('parses Shift, Alt, and combined modifiers', () {
+      final parser = KeyParser();
+
+      final shiftUp = asKey(
+        parser.add([0x1b, 0x5b, 0x31, 0x3b, 0x32, 0x41]).single,
+      );
+      expect(shiftUp.special, SpecialKey.up);
+      expect(shiftUp.shift, isTrue);
+      expect(shiftUp.ctrl, isFalse);
+
+      final altDown = asKey(
+        parser.add([0x1b, 0x5b, 0x31, 0x3b, 0x33, 0x42]).single,
+      );
+      expect(altDown.special, SpecialKey.down);
+      expect(altDown.alt, isTrue);
+
+      final ctrlShiftLeft = asKey(
+        parser.add([0x1b, 0x5b, 0x31, 0x3b, 0x36, 0x44]).single,
+      );
+      expect(ctrlShiftLeft.special, SpecialKey.left);
+      expect(ctrlShiftLeft.ctrl, isTrue);
+      expect(ctrlShiftLeft.shift, isTrue);
+    });
+
+    test('parses modifiers on tilde sequences', () {
+      final parser = KeyParser();
+      final event = asKey(
+        parser.add([0x1b, 0x5b, 0x33, 0x3b, 0x35, 0x7e]).single,
+      );
+      expect(event.special, SpecialKey.delete);
+      expect(event.ctrl, isTrue);
     });
 
     test('parses tilde sequences', () {

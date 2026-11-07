@@ -1,6 +1,6 @@
 name: ascanvas
 description: A small library for painting glyphs in colour on an ANSI terminal.
-version: 0.3.0
+version: 0.4.0
 publish_to: none
 
 environment:

@@ -25,13 +25,29 @@ enum SpecialKey {
 
 /// A key press received from the terminal.
 class KeyEvent extends InputEvent {
-  const KeyEvent._({this.special, this.character});
+  const KeyEvent._({
+    this.special,
+    this.character,
+    this.shift = false,
+    this.alt = false,
+    this.ctrl = false,
+  });
 
   /// Creates an event for a named key.
-  const KeyEvent.special(SpecialKey key) : this._(special: key);
+  const KeyEvent.special(
+    SpecialKey key, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  }) : this._(special: key, shift: shift, alt: alt, ctrl: ctrl);
 
   /// Creates an event for a printable character.
-  const KeyEvent.char(String value) : this._(character: value);
+  const KeyEvent.char(
+    String value, {
+    bool shift = false,
+    bool alt = false,
+    bool ctrl = false,
+  }) : this._(character: value, shift: shift, alt: alt, ctrl: ctrl);
 
   /// The named key, or `null` for a printable character.
   final SpecialKey? special;
@@ -39,13 +55,31 @@ class KeyEvent extends InputEvent {
   /// The printable character, or `null` for a named key.
   final String? character;
 
+  /// Whether Shift was held.
+  final bool shift;
+
+  /// Whether Alt (Meta) was held.
+  final bool alt;
+
+  /// Whether Ctrl was held.
+  final bool ctrl;
+
   /// Whether this event represents a printable character.
   bool get isCharacter => character != null;
 
+  /// Whether any modifier key was held.
+  bool get hasModifiers => shift || alt || ctrl;
+
   @override
   String toString() {
-    if (special != null) return 'KeyEvent(${special!.name})';
-    return 'KeyEvent(${jsonEncode(character)})';
+    final modifiers = [
+      if (shift) 'shift',
+      if (alt) 'alt',
+      if (ctrl) 'ctrl',
+    ];
+    final suffix = modifiers.isEmpty ? '' : ', ${modifiers.join('+')}';
+    if (special != null) return 'KeyEvent(${special!.name}$suffix)';
+    return 'KeyEvent(${jsonEncode(character)}$suffix)';
   }
 }
 

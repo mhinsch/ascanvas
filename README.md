@@ -98,6 +98,8 @@ used. For example, `Colour.rgb(255, 0, 0)` becomes SGR `38;5;196` on a
 
 `terminal.keys` is a broadcast stream of `KeyEvent`s. Named keys are available
 through `SpecialKey`; printable input appears as `KeyEvent.character`.
+Modified cursor and navigation keys expose `shift`, `alt`, and `ctrl`, so a
+sequence such as `ESC[1;5D` is reported as Ctrl+Left.
 
 ```dart
 await for (final event in terminal.keys) {

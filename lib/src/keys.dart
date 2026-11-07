@@ -76,8 +76,8 @@ class KeyParser {
             final mouse = _sgrMouseEvent(parameters, _buffer[finalPosition]);
             if (mouse != null) events.add(mouse);
           } else {
-            final key = _csiKey(_buffer[finalPosition], parameters);
-            if (key != null) events.add(KeyEvent.special(key));
+            final event = _csiEvent(_buffer[finalPosition], parameters);
+            if (event != null) events.add(event);
           }
           position = finalPosition + 1;
           continue;
@@ -199,7 +199,20 @@ class KeyParser {
     return MouseAction.press;
   }
 
-  static SpecialKey? _csiKey(int finalByte, String parameters) {
+  static KeyEvent? _csiEvent(int finalByte, String parameters) {
+    final key = _csiSpecialKey(finalByte, parameters);
+    if (key == null) return null;
+
+    final modifiers = _modifiers(parameters);
+    return KeyEvent.special(
+      key,
+      shift: modifiers.$1,
+      alt: modifiers.$2,
+      ctrl: modifiers.$3,
+    );
+  }
+
+  static SpecialKey? _csiSpecialKey(int finalByte, String parameters) {
     final letter = _letterKey(finalByte);
     if (letter != null) return letter;
     if (finalByte != 0x7e) return null;
@@ -214,6 +227,22 @@ class KeyParser {
       6 => SpecialKey.pageDown,
       _ => null,
     };
+  }
+
+  /// Parses an xterm modifier parameter (for example `1;5` → Ctrl).
+  static (bool, bool, bool) _modifiers(String parameters) {
+    final fields = parameters.split(';');
+    if (fields.length < 2) return (false, false, false);
+
+    final code = int.tryParse(fields[1]);
+    if (code == null || code <= 1) return (false, false, false);
+
+    final value = code - 1;
+    return (
+      (value & 1) != 0,
+      (value & 2) != 0,
+      (value & 4) != 0,
+    );
   }
 
   static SpecialKey? _letterKey(int byte) => switch (byte) {
