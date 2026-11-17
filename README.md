@@ -1,3 +1,6 @@
+[![AI Assisted](https://www.aihonestybadge.com/badges/ai-assisted-small.svg)](https://www.aihonestybadge.com)
+
+
 # ascanvas
 
 A small, dependency-free Dart library for painting glyphs in any foreground
